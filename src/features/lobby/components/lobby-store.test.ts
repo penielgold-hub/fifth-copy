@@ -101,6 +101,63 @@ describe("reduceLobby", () => {
 });
 
 describe("bindRoomSocket", () => {
+  it("marks and reloads once on the first version refusal without dispatching an error", () => {
+    const { socket, fire } = fakeSocket();
+    const dispatch = vi.fn();
+    const reload = vi.fn();
+    let marked = false;
+    bindRoomSocket(socket, dispatch, {
+      hasVersionReloadMarker: () => marked,
+      setVersionReloadMarker: () => {
+        marked = true;
+      },
+      clearVersionReloadMarker: () => {
+        marked = false;
+      },
+      reload,
+    });
+    // First version refusal: mark and reload without entering the error state.
+    fire("connectError", "version");
+    expect(marked).toBe(true);
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the normal version connect error when the marker already exists", () => {
+    const { socket, fire } = fakeSocket();
+    const dispatch = vi.fn();
+    const reload = vi.fn();
+    bindRoomSocket(socket, dispatch, {
+      hasVersionReloadMarker: () => true,
+      setVersionReloadMarker: vi.fn(),
+      clearVersionReloadMarker: vi.fn(),
+      reload,
+    });
+
+    fire("connectError", "version");
+    expect(reload).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({ type: "connect-error", reason: "version" });
+  });
+
+  it("clears the marker on a successful welcome", () => {
+    const { socket, fire } = fakeSocket();
+    const dispatch = vi.fn();
+    const clearVersionReloadMarker = vi.fn();
+    bindRoomSocket(socket, dispatch, {
+      hasVersionReloadMarker: () => true,
+      setVersionReloadMarker: vi.fn(),
+      clearVersionReloadMarker,
+      reload: vi.fn(),
+    });
+
+    fire("welcome", welcome(1, [ada]));
+    expect(clearVersionReloadMarker).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "welcome",
+      payload: welcome(1, [ada]),
+    });
+  });
+
   it("subscribes the socket's events and dispatches them as lobby events", () => {
     const { socket, cbs, fire } = fakeSocket();
     const dispatch = vi.fn();

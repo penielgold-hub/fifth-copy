@@ -77,11 +77,32 @@ export function reduceLobby(state: LobbyState, event: LobbyEvent): LobbyState {
   }
 }
 
+type VersionReload = {
+  hasVersionReloadMarker: () => boolean;
+  setVersionReloadMarker: () => void;
+  clearVersionReloadMarker: () => void;
+  reload: () => void;
+};
+
 /** Subscribes the room socket's events and turns them into lobby events. */
-export function bindRoomSocket(socket: RoomSocket, dispatch: (event: LobbyEvent) => void) {
-  socket.onWelcome((payload) => dispatch({ type: "welcome", payload }));
+export function bindRoomSocket(
+  socket: RoomSocket,
+  dispatch: (event: LobbyEvent) => void,
+  versionReload?: VersionReload,
+) {
+  socket.onWelcome((payload) => {
+    versionReload?.clearVersionReloadMarker();
+    dispatch({ type: "welcome", payload });
+  });
   socket.onRoster((payload) => dispatch({ type: "roster", payload }));
-  socket.onConnectError((reason) => dispatch({ type: "connect-error", reason }));
+  socket.onConnectError((reason) => {
+    if (reason === "version" && versionReload && !versionReload.hasVersionReloadMarker()) {
+      versionReload.setVersionReloadMarker();
+      versionReload.reload();
+      return;
+    }
+    dispatch({ type: "connect-error", reason });
+  });
   socket.onReconnecting(() => dispatch({ type: "reconnecting" }));
   socket.onReconnected(() => dispatch({ type: "reconnected" }));
 }

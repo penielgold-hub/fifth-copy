@@ -16,7 +16,8 @@ import {
 import { PlayerList, PlayerListSkeleton } from "./player-list";
 import { RoomCodeDocket } from "./room-code-docket";
 import styles from "./lobby.module.css";
-
+// One-shot guard against reload loops when a stale client bundle is rejected by protocol version.
+const VERSION_RELOAD_MARKER = "fifth-copy:lobby-version-reload";
 type ViewProps = { code: string; state: LobbyState; labels: LobbyLabels; errors: EntryErrors };
 
 /** The room docket and the roll for one lobby state (no hooks, so every state renders in tests). */
@@ -78,7 +79,12 @@ export function LobbyLive({
         if (aborted) return;
         if (!result.ok) return dispatch({ type: "token-error", error: result.error });
         socket = connectToRoom(result.url, result.token);
-        bindRoomSocket(socket, dispatch);
+        bindRoomSocket(socket, dispatch, {
+          hasVersionReloadMarker: () => sessionStorage.getItem(VERSION_RELOAD_MARKER) === "1",
+          setVersionReloadMarker: () => sessionStorage.setItem(VERSION_RELOAD_MARKER, "1"),
+          clearVersionReloadMarker: () => sessionStorage.removeItem(VERSION_RELOAD_MARKER),
+          reload: () => window.location.reload(),
+        });
       },
       () => {
         if (!aborted) dispatch({ type: "token-error", error: "generic" });
